@@ -1,0 +1,6 @@
+// Compile-only API stubs for third-party plugins that are only published to the
+// credentialed Rosewood repository. Used by :Plugin when no Maven credentials are
+// available (e.g. CI). Never shaded into the final jar.
+dependencies {
+    compileOnly "io.papermc.paper:paper-api:${paperVersion}.build.+"
+}

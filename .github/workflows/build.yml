@@ -12,9 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache Spigot (BuildTools) artifacts
+      - name: Restore Spigot (BuildTools) artifacts
         id: spigot-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/.m2/repository/org/spigotmc
           key: spigot-${{ hashFiles('NMS/*/build.gradle') }}
@@ -47,6 +47,13 @@ jobs:
           for v in 1.18.2 1.19.4 1.20.4; do bt "$JAVA_HOME_17_X64" "$v" --remapped; done
           for v in 1.20.6 1.21 1.21.3 1.21.4 1.21.5 1.21.8 1.21.10 1.21.11; do bt "$JAVA_HOME_21_X64" "$v" --remapped; done
           for v in 26.1 26.2 26.3; do bt "$JAVA_HOME_25_X64" "$v"; done
+
+      - name: Save Spigot (BuildTools) artifacts
+        if: steps.spigot-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.m2/repository/org/spigotmc
+          key: ${{ steps.spigot-cache.outputs.cache-primary-key }}
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
