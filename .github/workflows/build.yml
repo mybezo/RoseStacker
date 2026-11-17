@@ -1,0 +1,64 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Spigot (BuildTools) artifacts
+        id: spigot-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/spigotmc
+          key: spigot-${{ hashFiles('NMS/*/build.gradle') }}
+
+      - name: Set up JDKs
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            8
+            17
+            21
+            25
+
+      - name: Run BuildTools
+        if: steps.spigot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/buildtools" && cd "$RUNNER_TEMP/buildtools"
+          curl -fsSL -o BuildTools.jar https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
+          bt() { # <java_home> <version> [extra args]
+            local jh="$1" ver="$2"; shift 2
+            if ls ~/.m2/repository/org/spigotmc/spigot/"$ver"/*.jar >/dev/null 2>&1; then echo "spigot $ver already present"; return; fi
+            echo "::group::BuildTools $ver"
+            "$jh/bin/java" -jar BuildTools.jar --rev "$ver" --compile craftbukkit,spigot "$@" --output-dir "$RUNNER_TEMP/out" --disable-java-check
+            echo "::endgroup::"
+          }
+          bt "$JAVA_HOME_8_X64" 1.16.5
+          bt "$JAVA_HOME_17_X64" 1.17.1 --remapped
+          for v in 1.18.2 1.19.4 1.20.4; do bt "$JAVA_HOME_17_X64" "$v" --remapped; done
+          for v in 1.20.6 1.21 1.21.3 1.21.4 1.21.5 1.21.8 1.21.10 1.21.11; do bt "$JAVA_HOME_21_X64" "$v" --remapped; done
+          for v in 26.1 26.2 26.3; do bt "$JAVA_HOME_25_X64" "$v"; done
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        env:
+          ORG_GRADLE_PROJECT_mavenUser: ${{ secrets.MAVEN_USER }}
+          ORG_GRADLE_PROJECT_mavenPassword: ${{ secrets.MAVEN_PASSWORD }}
+        run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: RoseStacker
+          path: build/libs/*.jar
